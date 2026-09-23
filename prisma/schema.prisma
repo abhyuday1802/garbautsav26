@@ -1,0 +1,55 @@
+// Postgres schema for the Vertex Festival entry pass system.
+// Run `npm run db:push` after setting DATABASE_URL to create these tables.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Pass {
+  id               String    @id @default(cuid())
+  code             String    @unique // short human code, printed under the QR
+  type             String    // "daily" | "season"
+  category         String?   // "single" | "couple" | "family"  (season only)
+  capacity         Int       // 1, 2 or 4 people allowed per day
+  date             DateTime? // set for daily passes; null for season passes
+  name             String
+  email            String?
+  phone            String?
+  priceCents       Int
+  currency         String    @default("inr")
+  channel          String    // "website" | "counter" | "comp"
+  paymentMode      String    @default("online") // "online" | "cash" | "free"
+  collectedBy      String?   // staff/seller name who took the cash, cash payments only
+  sponsor          String?   // reason/who gave it, for comp passes
+  status           String    @default("pending") // "pending" | "paid" | "void"
+  stripeSessionId  String?   @unique
+  createdAt        DateTime  @default(now())
+  checkins         Checkin[]
+
+  @@index([status])
+  @@index([type])
+}
+
+model Checkin {
+  id        String   @id @default(cuid())
+  passId    String
+  pass      Pass     @relation(fields: [passId], references: [id])
+  date      String   // "YYYY-MM-DD", the event day this checkin applies to
+  count     Int      // how many of the group have entered on `date` so far
+  updatedAt DateTime @updatedAt
+
+  @@unique([passId, date])
+}
+
+// One row per event day, so the gate's date dropdown and validity
+// window come from data instead of being hard-coded in the frontend.
+model EventDay {
+  id    String @id @default(cuid())
+  date  String @unique // "YYYY-MM-DD"
+  label String // "Day 1", "Sat, Nov 14", etc.
+}
